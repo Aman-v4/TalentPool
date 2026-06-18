@@ -96,6 +96,12 @@ interface TalentPoolState {
   getConsultantWorkspaces: () => Workspace[];
   getConsultantTasks: () => Task[];
   getConsultantPayments: () => PaymentRecord[];
+  getConsultantInvitations: () => Invitation[];
+  getPendingApplicationsByPool: () => Array<{ poolId: string; count: number }>;
+  getInvestedAmountForWorkspace: (workspaceId: string) => number;
+  getConsultantPoolMetrics: (poolId: string) => { openTasks: number; closedTasks: number; pendingApplications: number };
+  getConsultantWorkspaceMetrics: (workspaceId: string) => { openTasks: number; closedTasks: number; inReview: number };
+  getTasksForPool: (poolId: string) => Task[];
   getPoolMatchScore: (poolId: string) => number;
   hasConsultantAppliedToPool: (poolId: string) => boolean;
   isConsultantEnrolledInPool: (poolId: string) => boolean;
@@ -313,6 +319,7 @@ export function TalentPoolProvider({ children }: { children: ReactNode }) {
       submissionStatus: pool.entryAssignment ? "Assignment submitted for review" : "Profile submitted for review",
       submissionDetails: input.submissionDetails,
       clientQuestions: input.clientQuestions,
+      submissionAttachment: input.submissionAttachment,
     };
     setApplications((current) => [application, ...current]);
     pushNotification("Application submitted", `Your application to ${pool.name} is pending client review.`, "Application", "consultant");
@@ -382,6 +389,48 @@ export function TalentPoolProvider({ children }: { children: ReactNode }) {
 
   const getConsultantPayments = () =>
     paymentRecords.filter((record) => record.professionalId === consultantProfile.professionalId && record.status === "Completed");
+
+  const getConsultantInvitations = () =>
+    invitations.filter((invitation) => invitation.professionalId === consultantProfile.professionalId);
+
+  const getPendingApplicationsByPool = () => {
+    const counts = new Map<string, number>();
+    applications
+      .filter((application) => resolveApplicationStatus(application) === "Pending")
+      .forEach((application) => counts.set(application.poolId, (counts.get(application.poolId) ?? 0) + 1));
+    return [...counts.entries()].map(([poolId, count]) => ({ poolId, count }));
+  };
+
+  const getInvestedAmountForWorkspace = (workspaceId: string) =>
+    paymentRecords
+      .filter((record) => record.workspaceId === workspaceId && record.status === "Completed")
+      .reduce((sum, record) => sum + record.amount, 0);
+
+  const getConsultantPoolMetrics = (poolId: string) => {
+    const poolTasks = tasks.filter((task) => task.poolId === poolId && task.activeAssigneeId === consultantProfile.professionalId);
+    const openTasks = poolTasks.filter((task) => !["Completed", "Approved", "Cancelled"].includes(task.status)).length;
+    const closedTasks = poolTasks.filter((task) => ["Completed", "Approved"].includes(task.status)).length;
+    const pendingApplications = applications.filter(
+      (application) =>
+        application.poolId === poolId &&
+        application.professionalId === consultantProfile.professionalId &&
+        application.status === "Pending",
+    ).length;
+    return { openTasks, closedTasks, pendingApplications };
+  };
+
+  const getConsultantWorkspaceMetrics = (workspaceId: string) => {
+    const workspaceTasks = tasks.filter(
+      (task) => task.workspaceId === workspaceId && task.activeAssigneeId === consultantProfile.professionalId,
+    );
+    const openTasks = workspaceTasks.filter((task) => !["Completed", "Approved", "Cancelled"].includes(task.status)).length;
+    const closedTasks = workspaceTasks.filter((task) => ["Completed", "Approved"].includes(task.status)).length;
+    const inReview = workspaceTasks.filter((task) => ["Submitted", "Under Review"].includes(task.status)).length;
+    return { openTasks, closedTasks, inReview };
+  };
+
+  const getTasksForPool = (poolId: string) =>
+    tasks.filter((task) => task.poolId === poolId && task.activeAssigneeId === consultantProfile.professionalId);
 
   const getPoolMatchScore = (poolId: string) => {
     const pool = talentPools.find((entry) => entry.id === poolId);
@@ -1004,6 +1053,12 @@ export function TalentPoolProvider({ children }: { children: ReactNode }) {
       getConsultantWorkspaces,
       getConsultantTasks,
       getConsultantPayments,
+      getConsultantInvitations,
+      getPendingApplicationsByPool,
+      getInvestedAmountForWorkspace,
+      getConsultantPoolMetrics,
+      getConsultantWorkspaceMetrics,
+      getTasksForPool,
       getPoolMatchScore,
       hasConsultantAppliedToPool,
       isConsultantEnrolledInPool,

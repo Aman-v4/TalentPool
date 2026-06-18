@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ReviewSubmissionModal } from "../components/workspace/ReviewSubmissionModal";
+import { ProfileSlideOver } from "../components/profile/ProfileSlideOver";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
@@ -56,6 +57,7 @@ export function TaskDetailsPage() {
   const task = taskId ? getTask(taskId) : undefined;
   const [reviewMilestone, setReviewMilestone] = useState<Milestone | null>(null);
   const [reviewTaskSubmission, setReviewTaskSubmission] = useState(false);
+  const [profilePreviewOpen, setProfilePreviewOpen] = useState(false);
 
   if (!task) {
     return <EmptyState icon={FileCheck2} title="Task not found" body="The selected task is not available in this prototype data set." />;
@@ -246,9 +248,9 @@ export function TaskDetailsPage() {
                       <p className="text-sm text-ink-500">{assignee.title}</p>
                     </div>
                   </div>
-                  <Link to={`/professionals/${assignee.id}`} className="btn-outline mt-4 w-full">
+                  <button type="button" className="btn-outline mt-4 w-full" onClick={() => setProfilePreviewOpen(true)}>
                     View Profile
-                  </Link>
+                  </button>
                 </div>
               ) : (
                 <p className="mt-4 text-sm text-ink-500">No freelancer assigned yet.</p>
@@ -347,6 +349,10 @@ export function TaskDetailsPage() {
           onApprove={() => releasePaymentForTask(task.id)}
           paymentOnApproval
         />
+      )}
+
+      {profilePreviewOpen && assignee && (
+        <ProfileSlideOver professional={assignee} onClose={() => setProfilePreviewOpen(false)} />
       )}
     </>
   );

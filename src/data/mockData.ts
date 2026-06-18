@@ -286,6 +286,10 @@ export const applications: Application[] = [
     description: "I want to join the frontend bench to support React dashboard work. My recent cloud delivery experience helps me coordinate deployment handoffs with frontend teams.",
     submissionStatus: "Profile submitted for client review",
     submissionDetails: "Portfolio and resume attached. Applicant has 4 relevant cloud-to-frontend release handoffs.",
+    submissionAttachment: {
+      name: "maria-chen-frontend-assignment.zip.txt",
+      content: "Entry assignment: Responsive login card\nDeliverables: Component code, validation states, accessibility notes\nRepo: github.com/mchen/login-card-demo",
+    },
     clientQuestions: [
       { question: "Which frontend stack have you used most recently?", answer: "React with TypeScript, Vite, and component libraries supported by design tokens." },
       { question: "Can you support production handoff?", answer: "Yes. I can own CI/CD coordination, staging checks, and rollback notes." },
@@ -557,6 +561,7 @@ export const invitations: Invitation[] = [
   { id: "inv-1", poolId: "pool-ai", professionalId: "pro-6", sentAt: "2026-06-13", status: "Pending" },
   { id: "inv-2", poolId: "pool-design", professionalId: "pro-5", sentAt: "2026-06-02", status: "Accepted" },
   { id: "inv-3", poolId: "pool-frontend", professionalId: "pro-3", sentAt: "2026-05-25", status: "Expired" },
+  { id: "inv-4", poolId: "pool-ai", professionalId: "pro-consultant", sentAt: "2026-06-15", status: "Pending" },
 ];
 
 export const announcements: Announcement[] = [

@@ -1,8 +1,9 @@
-import { ArrowLeft, ClipboardList, Clock, FolderKanban, Send, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, Briefcase, ClipboardList, Clock, FolderKanban, Paperclip, Send, Sparkles, Users } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Badge } from "../../components/ui/Badge";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { MetricCard } from "../../components/ui/MetricCard";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { StatusBadge } from "../../components/ui/Status";
 import { useTalentPool } from "../../state/TalentPoolContext";
@@ -13,8 +14,11 @@ export function ConsultantPoolDetailPage() {
   const {
     consultantProfile,
     getActiveMembershipsForPool,
+    getConsultantPoolMetrics,
     getPool,
     getPoolMatchScore,
+    getTasksForPool,
+    getWorkspace,
     hasConsultantAppliedToPool,
     isConsultantEnrolledInPool,
     submitConsultantApplication,
@@ -23,6 +27,7 @@ export function ConsultantPoolDetailPage() {
   const [description, setDescription] = useState("");
   const [submissionDetails, setSubmissionDetails] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   const skills = consultantProfile.skills ?? [];
@@ -38,7 +43,14 @@ export function ConsultantPoolDetailPage() {
   const members = getActiveMembershipsForPool(pool.id);
   const matchedSkills = pool.requiredSkills.filter((skill) => skills.includes(skill));
   const missingSkills = pool.requiredSkills.filter((skill) => !skills.includes(skill));
+  const poolTasks = getTasksForPool(pool.id);
+  const metrics = getConsultantPoolMetrics(pool.id);
   const backHref = isEnrolled ? "/consultant/my-pools" : "/consultant";
+
+  const onAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) setAttachmentName(file.name);
+  };
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -46,7 +58,14 @@ export function ConsultantPoolDetailPage() {
       question,
       answer: answers[question] ?? "",
     }));
-    submitConsultantApplication(pool.id, { description, submissionDetails, clientQuestions });
+    submitConsultantApplication(pool.id, {
+      description,
+      submissionDetails,
+      clientQuestions,
+      submissionAttachment: attachmentName
+        ? { name: attachmentName, content: `${submissionDetails}\n\nAttached file: ${attachmentName}` }
+        : undefined,
+    });
     setSubmitted(true);
   };
 
@@ -67,6 +86,14 @@ export function ConsultantPoolDetailPage() {
           </>
         }
       />
+
+      {isEnrolled && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MetricCard label="Open tasks" value={String(metrics.openTasks)} detail="Assigned from this pool" icon={Briefcase} accent="brand" />
+          <MetricCard label="Closed tasks" value={String(metrics.closedTasks)} detail="Completed or approved" icon={Briefcase} accent="blue" />
+          <MetricCard label="Pending applications" value={String(metrics.pendingApplications)} detail="Your submissions awaiting review" icon={ClipboardList} accent="amber" />
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
         <div className="space-y-6">
@@ -93,6 +120,26 @@ export function ConsultantPoolDetailPage() {
               </p>
             )}
           </section>
+
+          {isEnrolled && poolTasks.length > 0 && (
+            <section className="panel p-5">
+              <h2 className="text-lg font-bold text-ink-900">Your tasks in this pool</h2>
+              <div className="mt-4 space-y-3">
+                {poolTasks.map((task) => {
+                  const workspace = getWorkspace(task.workspaceId);
+                  return (
+                    <Link key={task.id} to={`/consultant/tasks/${task.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-100 p-4 transition hover:bg-ink-50">
+                      <div>
+                        <p className="font-semibold text-ink-900">{task.title}</p>
+                        <p className="text-sm text-ink-500">{workspace?.name ?? "Workspace"}</p>
+                      </div>
+                      <StatusBadge status={task.status} />
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {assignment && !isEnrolled && (
             <section className="panel p-5">
@@ -198,6 +245,18 @@ export function ConsultantPoolDetailPage() {
                       onChange={(e) => setSubmissionDetails(e.target.value)}
                       placeholder="I built a responsive login card with validation states. Repo: github.com/... Demo: ..."
                     />
+                  </label>
+                </div>
+
+                <div className="rounded-lg border border-dashed border-ink-200 p-5">
+                  <label className="block">
+                    <span className="flex items-center gap-2 text-sm font-bold text-ink-900">
+                      <Paperclip className="h-4 w-4" />
+                      Attach assignment files
+                    </span>
+                    <p className="mt-1 text-xs text-ink-500">Upload deliverables such as code samples, PDFs, or design exports.</p>
+                    <input type="file" className="mt-3 block w-full text-sm text-ink-600" onChange={onAttachmentChange} />
+                    {attachmentName && <p className="mt-2 text-xs font-semibold text-brand-700">Selected: {attachmentName}</p>}
                   </label>
                 </div>
               </>

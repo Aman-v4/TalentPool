@@ -1,12 +1,13 @@
 import { Filter, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { ApplicationReviewQueue } from "../components/talent/ApplicationReviewQueue";
+import { ApplicationSlideOver } from "../components/talent/ApplicationSlideOver";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
 import { PageHeader } from "../components/ui/PageHeader";
 import { StatusBadge } from "../components/ui/Status";
 import { useTalentPool } from "../state/TalentPoolContext";
-import type { ApplicationStatus } from "../types";
+import type { Application, ApplicationStatus } from "../types";
 import { formatDate, resolveApplicationStatus } from "../utils/date";
 
 const STATUS_FILTERS: Array<ApplicationStatus | "All"> = [
@@ -24,19 +25,27 @@ export function ApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "All">("All");
   const [poolFilter, setPoolFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  const pendingApplications = useMemo(
+    () => applications.filter((application) => resolveApplicationStatus(application) === "Pending"),
+    [applications],
+  );
 
   const poolTabs = useMemo(
     () => [
-      { id: "all", label: "All pools", count: applications.length },
+      { id: "all", label: "All pools", count: applications.length, pending: pendingApplications.length },
       ...talentPools
         .filter((pool) => !pool.archived)
         .map((pool) => ({
           id: pool.id,
           label: pool.name,
           count: applications.filter((application) => application.poolId === pool.id).length,
+          pending: pendingApplications.filter((application) => application.poolId === pool.id).length,
         })),
     ],
-    [applications, talentPools],
+    [applications, pendingApplications, talentPools],
   );
 
   const filteredApplications = useMemo(() => {
@@ -65,28 +74,46 @@ export function ApplicationsPage() {
     });
   }, [applications, getPool, getProfessional, poolFilter, searchQuery, statusFilter]);
 
+  const filteredPending = useMemo(() => {
+    if (poolFilter === "all") return pendingApplications;
+    return pendingApplications.filter((application) => application.poolId === poolFilter);
+  }, [pendingApplications, poolFilter]);
+
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Membership pipeline"
         title="Applications"
         actions={
-          <label className="focus-ring inline-flex items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm font-semibold text-ink-700 shadow-sm">
-            <Filter className="h-4 w-4 text-ink-400" />
-            <select
-              className="bg-transparent text-sm font-semibold text-ink-700 outline-none"
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as ApplicationStatus | "All")}
-            >
-              {STATUS_FILTERS.map((status) => (
-                <option key={status} value={status}>
-                  {status === "All" ? "All statuses" : status}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            {filteredPending.length > 0 && (
+              <button type="button" className="btn-primary" onClick={() => setReviewOpen(true)}>
+                Review queue ({filteredPending.length})
+              </button>
+            )}
+            <label className="focus-ring inline-flex items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm font-semibold text-ink-700 shadow-sm">
+              <Filter className="h-4 w-4 text-ink-400" />
+              <select
+                className="bg-transparent text-sm font-semibold text-ink-700 outline-none"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as ApplicationStatus | "All")}
+              >
+                {STATUS_FILTERS.map((status) => (
+                  <option key={status} value={status}>
+                    {status === "All" ? "All statuses" : status}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         }
       />
+
+      {pendingApplications.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <p className="text-sm font-bold text-amber-800">{pendingApplications.length} application{pendingApplications.length !== 1 ? "s" : ""} pending review across talent pools</p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2 rounded-lg border border-ink-200 bg-white p-2 shadow-sm">
@@ -99,7 +126,9 @@ export function ApplicationsPage() {
               onClick={() => setPoolFilter(tab.id)}
             >
               {tab.label}
-              <span className={`ml-2 text-xs ${poolFilter === tab.id ? "text-white/80" : "text-ink-400"}`}>{tab.count}</span>
+              <span className={`ml-2 text-xs ${poolFilter === tab.id ? "text-white/80" : "text-ink-400"}`}>
+                {tab.count}{tab.pending > 0 ? ` · ${tab.pending} pending` : ""}
+              </span>
             </button>
           ))}
         </div>
@@ -122,10 +151,11 @@ export function ApplicationsPage() {
             const resolvedStatus = resolveApplicationStatus(application);
 
             return (
-              <Link
+              <button
                 key={application.id}
-                to={`/applications/${application.id}`}
-                className="panel block p-5 transition hover:-translate-y-0.5 hover:shadow-panel"
+                type="button"
+                className="panel block w-full p-5 text-left transition hover:-translate-y-0.5 hover:shadow-panel"
+                onClick={() => setSelectedApplication(application)}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -152,7 +182,7 @@ export function ApplicationsPage() {
                     Rejection reason: {application.rejectionReason}
                   </div>
                 )}
-              </Link>
+              </button>
             );
           })}
         </div>
@@ -162,10 +192,20 @@ export function ApplicationsPage() {
         </div>
       )}
 
-      {statusFilter !== "All" && filteredApplications.length > 0 && (
-        <div className="flex justify-end">
-          <Badge tone="blue">{filteredApplications.length} shown · {statusFilter}</Badge>
-        </div>
+      {selectedApplication && !reviewOpen && (
+        <ApplicationSlideOver
+          application={selectedApplication}
+          onClose={() => setSelectedApplication(null)}
+          onReview={() => setReviewOpen(true)}
+        />
+      )}
+
+      {reviewOpen && (
+        <ApplicationReviewQueue
+          applications={filteredPending}
+          poolId={poolFilter === "all" ? undefined : poolFilter}
+          onClose={() => { setReviewOpen(false); setSelectedApplication(null); }}
+        />
       )}
     </div>
   );

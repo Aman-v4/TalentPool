@@ -9,8 +9,8 @@ import { useTalentPool } from "../state/TalentPoolContext";
 import { formatCurrency, formatDate } from "../utils/date";
 
 export function WorkspacesPage() {
-  const { getAssociatedPoolsForWorkspace, milestones, tasks, workspaces } = useTalentPool();
-  const totalBudget = workspaces.reduce((sum, workspace) => sum + workspace.budget, 0);
+  const { getAssociatedPoolsForWorkspace, getInvestedAmountForWorkspace, milestones, tasks, workspaces } = useTalentPool();
+  const totalInvested = workspaces.reduce((sum, workspace) => sum + getInvestedAmountForWorkspace(workspace.id), 0);
   const activeWorkspaces = workspaces.filter((workspace) => workspace.status === "Active").length;
   const linkedPoolCount = new Set(
     workspaces.flatMap((workspace) => getAssociatedPoolsForWorkspace(workspace.id).map((pool) => pool.id))
@@ -35,18 +35,14 @@ export function WorkspacesPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard label="Active workspaces" value={String(activeWorkspaces)} detail={`${workspaces.length} total execution spaces`} icon={BriefcaseBusiness} accent="brand" />
         <MetricCard label="Derived pool links" value={String(linkedPoolCount)} detail="No manual workspace-pool link action" icon={Link2} accent="blue" />
-        <MetricCard label="Total budget" value={formatCurrency(totalBudget)} detail="Spending visible by workspace and task" icon={CircleDollarSign} accent="amber" />
+        <MetricCard label="Amount invested" value={formatCurrency(totalInvested)} detail="Completed payments across workspaces" icon={CircleDollarSign} accent="amber" />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
         {workspaces.map((workspace) => {
           const workspaceTasks = tasks.filter((task) => task.workspaceId === workspace.id);
-          const workspaceMilestones = milestones.filter((milestone) =>
-            workspaceTasks.some((task) => task.id === milestone.taskId)
-          );
-          const paidAmount = workspaceMilestones
-            .filter((milestone) => milestone.paymentStatus === "Completed")
-            .reduce((sum, milestone) => sum + milestone.amount, 0);
+          const openTasks = workspaceTasks.filter((task) => !["Completed", "Approved", "Cancelled"].includes(task.status)).length;
+          const investedAmount = getInvestedAmountForWorkspace(workspace.id);
           const completedTasks = workspaceTasks.filter((task) =>
             ["Completed", "Approved"].includes(task.status)
           ).length;
@@ -78,12 +74,12 @@ export function WorkspacesPage() {
                   <p className="mt-1 text-lg font-bold text-ink-900">{workspaceTasks.length}</p>
                 </div>
                 <div className="rounded-lg bg-ink-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">Budget</p>
-                  <p className="mt-1 text-lg font-bold text-ink-900">{formatCurrency(workspace.budget)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">Open tasks</p>
+                  <p className="mt-1 text-lg font-bold text-ink-900">{openTasks}</p>
                 </div>
                 <div className="rounded-lg bg-ink-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">Paid</p>
-                  <p className="mt-1 text-lg font-bold text-ink-900">{formatCurrency(paidAmount)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">Invested</p>
+                  <p className="mt-1 text-lg font-bold text-ink-900">{formatCurrency(investedAmount)}</p>
                 </div>
               </div>
 
@@ -97,7 +93,7 @@ export function WorkspacesPage() {
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {pendingReviews > 0 && <Badge tone="amber">{pendingReviews} pending review{pendingReviews !== 1 ? "s" : ""}</Badge>}
-                <Badge tone="neutral">{workspaceTasks.length} task{workspaceTasks.length !== 1 ? "s" : ""}</Badge>
+                <Badge tone="neutral">{openTasks} open task{openTasks !== 1 ? "s" : ""}</Badge>
               </div>
             </Link>
           );

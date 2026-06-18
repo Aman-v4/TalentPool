@@ -1,10 +1,11 @@
-import { Link2 } from "lucide-react";
+import { Download, Link2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Avatar } from "../ui/Avatar";
 import { Badge } from "../ui/Badge";
 import { StatusBadge } from "../ui/Status";
 import { useTalentPool } from "../../state/TalentPoolContext";
 import type { Application } from "../../types";
+import { downloadTextFile } from "../../utils/download";
 import { formatDate, resolveApplicationStatus } from "../../utils/date";
 
 export function ApplicationDetailContent({ application }: { application: Application }) {
@@ -89,7 +90,23 @@ export function ApplicationDetailContent({ application }: { application: Applica
           </div>
         )}
         <p className="mt-3 text-sm font-semibold text-ink-800">{application.submissionStatus}</p>
-        <p className="mt-1 text-sm leading-7 text-ink-600">{application.submissionDetails}</p>
+        <div className="mt-2 flex items-start justify-between gap-3">
+          <p className="text-sm leading-7 text-ink-600">{application.submissionDetails}</p>
+          <button
+            type="button"
+            className="btn-outline shrink-0 px-3 py-2"
+            onClick={() => {
+              const filename = application.submissionAttachment?.name ?? `${professional?.name ?? "applicant"}-assignment.txt`;
+              const content =
+                application.submissionAttachment?.content ??
+                `Assignment submission\n\nPool: ${pool?.name ?? "Unknown"}\nApplicant: ${professional?.name ?? "Unknown"}\n\n${application.submissionDetails}`;
+              downloadTextFile(filename, content);
+            }}
+            aria-label="Download assignment"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-ink-200 p-4">

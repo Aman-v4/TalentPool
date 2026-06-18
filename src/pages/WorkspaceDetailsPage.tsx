@@ -51,6 +51,8 @@ export function WorkspaceDetailsPage() {
     approveMilestoneCompletion,
     clientProfile,
     getAssociatedPoolsForWorkspace,
+    getInvestedAmountForWorkspace,
+    getMilestone,
     getMilestonesForTask,
     getProfessional,
     getSubmissionForMilestone,
@@ -81,10 +83,8 @@ export function WorkspaceDetailsPage() {
 
   const associatedPools = getAssociatedPoolsForWorkspace(workspace.id);
   const workspaceMilestones = milestones.filter((milestone) => workspaceTasks.some((task) => task.id === milestone.taskId));
+  const paidAmount = getInvestedAmountForWorkspace(workspace.id);
   const workspacePayments = paymentRecords.filter((record) => record.workspaceId === workspace.id);
-  const paidAmount = workspacePayments
-    .filter((record) => record.status === "Completed")
-    .reduce((sum, record) => sum + record.amount, 0);
   const completedTasks = workspaceTasks.filter((task) => ["Completed", "Approved"].includes(task.status)).length;
   const progress = Math.round((completedTasks / Math.max(1, workspaceTasks.length)) * 100);
   const pendingReviews = workspaceTasks.filter((task) => ["Submitted", "Under Review"].includes(task.status)).length;
@@ -176,7 +176,7 @@ export function WorkspaceDetailsPage() {
         <section className="panel p-5">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Tasks" value={String(workspaceTasks.length)} detail={`${completedTasks} completed`} icon={BriefcaseBusiness} accent="brand" />
-            <MetricCard label="Budget" value={formatCurrency(workspace.budget)} detail={`${formatCurrency(paidAmount)} paid`} icon={CircleDollarSign} accent="amber" />
+            <MetricCard label="Amount invested" value={formatCurrency(paidAmount)} detail="Completed payments" icon={CircleDollarSign} accent="amber" />
             <MetricCard label="Team" value={String(teamMembers.length)} detail="Active assignees" icon={Users} accent="blue" />
             <MetricCard label="Pending reviews" value={String(pendingReviews)} detail={`${formatCurrency(upcomingMilestonePay)} upcoming`} icon={Clock3} accent="coral" />
           </div>

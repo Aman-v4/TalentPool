@@ -1,7 +1,8 @@
-import { Archive, ChevronRight, Mail, Megaphone, MoreHorizontal, Plus, Search, Users } from "lucide-react";
+import { Archive, ChevronRight, Filter, Mail, Megaphone, MoreHorizontal, Plus, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApplicationReviewList } from "../components/talent/ApplicationReviewList";
+import { ProfileSlideOver } from "../components/profile/ProfileSlideOver";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
 import { MetricCard } from "../components/ui/MetricCard";
@@ -9,10 +10,12 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { PillTabs } from "../components/ui/PillTabs";
 import { PoolIcon } from "../components/ui/PoolIcon";
 import { useTalentPool } from "../state/TalentPoolContext";
+import type { Professional } from "../types";
+import { getCredibilityScore } from "../utils/credibility";
 import { resolveApplicationStatus } from "../utils/date";
 
 type TalentPoolTab = "active-pools" | "members" | "applications";
-type PoolFilter = "active" | "archived";
+type PoolFilter = "active" | "archived" | "all";
 
 const tabs: Array<{ id: TalentPoolTab; label: string }> = [
   { id: "active-pools", label: "Active Pools" },
@@ -25,19 +28,40 @@ export function TalentPoolsPage() {
   const [activeTab, setActiveTab] = useState<TalentPoolTab>("active-pools");
   const [poolFilter, setPoolFilter] = useState<PoolFilter>("active");
   const [search, setSearch] = useState("");
+  const [applicationPoolFilter, setApplicationPoolFilter] = useState("all");
+  const [profilePreview, setProfilePreview] = useState<Professional | null>(null);
 
   const activePools = talentPools.filter((pool) => !pool.archived);
   const archivedPools = talentPools.filter((pool) => pool.archived);
   const displayedPools = useMemo(() => {
-    const source = poolFilter === "active" ? activePools : archivedPools;
+    let source = talentPools;
+    if (poolFilter === "active") source = activePools;
+    if (poolFilter === "archived") source = archivedPools;
     const query = search.trim().toLowerCase();
     if (!query) return source;
     return source.filter((pool) => pool.name.toLowerCase().includes(query) || pool.description.toLowerCase().includes(query));
-  }, [activePools, archivedPools, poolFilter, search]);
+  }, [activePools, archivedPools, poolFilter, search, talentPools]);
 
   const totalMembers = talentPools.reduce((sum, pool) => sum + getActiveMembershipsForPool(pool.id).length, 0);
   const pendingApplications = applications.filter((application) => resolveApplicationStatus(application) === "Pending");
   const pendingInvitations = invitations.filter((invitation) => invitation.status === "Pending");
+
+  const filteredPendingApplications = useMemo(() => {
+    if (applicationPoolFilter === "all") return pendingApplications;
+    return pendingApplications.filter((application) => application.poolId === applicationPoolFilter);
+  }, [applicationPoolFilter, pendingApplications]);
+
+  const applicationPoolTabs = useMemo(
+    () => [
+      { id: "all", label: "All pools", count: pendingApplications.length },
+      ...activePools.map((pool) => ({
+        id: pool.id,
+        label: pool.name,
+        count: pendingApplications.filter((application) => application.poolId === pool.id).length,
+      })).filter((tab) => tab.count > 0),
+    ],
+    [activePools, pendingApplications],
+  );
 
   return (
     <div className="space-y-8">
@@ -64,14 +88,18 @@ export function TalentPoolsPage() {
       {activeTab === "active-pools" && (
         <>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <PillTabs
-              tabs={[
-                { id: "active" as PoolFilter, label: `Active (${activePools.length})` },
-                { id: "archived" as PoolFilter, label: `Archived (${archivedPools.length})` },
-              ]}
-              active={poolFilter}
-              onChange={setPoolFilter}
-            />
+            <label className="focus-ring inline-flex items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm font-semibold text-ink-700 shadow-sm">
+              <Filter className="h-4 w-4 text-ink-400" />
+              <select
+                className="bg-transparent text-sm font-semibold text-ink-700 outline-none"
+                value={poolFilter}
+                onChange={(event) => setPoolFilter(event.target.value as PoolFilter)}
+              >
+                <option value="active">Active pools ({activePools.length})</option>
+                <option value="archived">Archived pools ({archivedPools.length})</option>
+                <option value="all">All pools ({talentPools.length})</option>
+              </select>
+            </label>
             <div className="search-pill max-w-xs">
               <Search className="h-4 w-4 shrink-0" />
               <input
@@ -88,9 +116,10 @@ export function TalentPoolsPage() {
               const members = getActiveMembershipsForPool(pool.id);
               const visibleSkills = pool.requiredSkills.slice(0, 3);
               const extraSkills = pool.requiredSkills.length - visibleSkills.length;
+              const poolPending = pendingApplications.filter((application) => application.poolId === pool.id).length;
 
               return (
-                <article key={pool.id} className="panel p-5">
+                <Link key={pool.id} to={`/talent-pools/${pool.id}`} className="panel block p-5 transition hover:-translate-y-0.5 hover:shadow-panel">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                       <PoolIcon name={pool.name} size="sm" />
@@ -99,7 +128,12 @@ export function TalentPoolsPage() {
                         <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-500">{pool.description}</p>
                       </div>
                     </div>
-                    <button type="button" className="rounded-full p-1.5 text-ink-400 hover:bg-ink-50" aria-label="Pool options">
+                    <button
+                      type="button"
+                      className="rounded-full p-1.5 text-ink-400 hover:bg-ink-50"
+                      aria-label="Pool options"
+                      onClick={(event) => event.preventDefault()}
+                    >
                       <MoreHorizontal className="h-5 w-5" />
                     </button>
                   </div>
@@ -110,13 +144,16 @@ export function TalentPoolsPage() {
                   </div>
 
                   <div className="mt-5 flex items-center justify-between border-t border-ink-100 pt-4">
-                    <span className="text-sm text-ink-500">{members.length} members</span>
-                    <Link to={`/talent-pools/${pool.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700">
+                    <div className="flex flex-wrap gap-2 text-sm text-ink-500">
+                      <span>{members.length} members</span>
+                      {poolPending > 0 && <Badge tone="amber">{poolPending} pending</Badge>}
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600">
                       View pool
                       <ChevronRight className="h-4 w-4" />
-                    </Link>
+                    </span>
                   </div>
-                </article>
+                </Link>
               );
             })}
           </div>
@@ -127,8 +164,14 @@ export function TalentPoolsPage() {
         <div className="grid gap-5 md:grid-cols-2">
           {professionals.map((professional) => {
             const pools = getPoolsForProfessional(professional.id);
+            const credibility = getCredibilityScore(professional);
             return (
-              <Link key={professional.id} to={`/professionals/${professional.id}`} className="panel block p-5 transition hover:shadow-panel">
+              <button
+                key={professional.id}
+                type="button"
+                className="panel block w-full p-5 text-left transition hover:shadow-panel"
+                onClick={() => setProfilePreview(professional)}
+              >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 items-center gap-4">
                     <Avatar initials={professional.avatar} src={professional.photoUrl} size="lg" />
@@ -142,10 +185,11 @@ export function TalentPoolsPage() {
                     {professional.availability}
                   </Badge>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {pools.map((pool) => <Badge key={pool.id} tone="blue">{pool.name}</Badge>)}
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <Badge tone="blue">Credibility {credibility}/100</Badge>
+                  {pools.map((pool) => <Badge key={pool.id} tone="neutral">{pool.name}</Badge>)}
                 </div>
-              </Link>
+              </button>
             );
           })}
         </div>
@@ -160,9 +204,30 @@ export function TalentPoolsPage() {
             </div>
             <Badge tone="amber">{pendingApplications.length} pending</Badge>
           </div>
-          <ApplicationReviewList applications={pendingApplications} emptyMessage="No pending applications across Talent Pools." />
+
+          <div className="mb-5 flex flex-wrap gap-2">
+            {applicationPoolTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`rounded-lg px-4 py-2 text-sm font-bold transition ${applicationPoolFilter === tab.id ? "bg-ink-900 text-white" : "bg-ink-50 text-ink-600 hover:bg-ink-100"}`}
+                onClick={() => setApplicationPoolFilter(tab.id)}
+              >
+                {tab.label}
+                <span className="ml-2 text-xs opacity-80">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <ApplicationReviewList
+            applications={filteredPendingApplications}
+            poolId={applicationPoolFilter === "all" ? undefined : applicationPoolFilter}
+            emptyMessage="No pending applications across Talent Pools."
+          />
         </section>
       )}
+
+      {profilePreview && <ProfileSlideOver professional={profilePreview} onClose={() => setProfilePreview(null)} />}
     </div>
   );
 }

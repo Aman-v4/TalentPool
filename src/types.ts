@@ -162,6 +162,10 @@ export interface Application {
     answer: string;
   }>;
   rejectionReason?: string;
+  submissionAttachment?: {
+    name: string;
+    content: string;
+  };
 }
 
 export interface Invitation {
@@ -317,6 +321,10 @@ export interface ConsultantApplicationInput {
   description: string;
   submissionDetails: string;
   clientQuestions: Array<{ question: string; answer: string }>;
+  submissionAttachment?: {
+    name: string;
+    content: string;
+  };
 }
 
 export interface ConsultantSubmissionInput {

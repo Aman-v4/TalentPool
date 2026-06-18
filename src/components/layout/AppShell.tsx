@@ -12,27 +12,29 @@ import {
 import { useState, type ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useTalentPool } from "../../state/TalentPoolContext";
+import { resolveApplicationStatus } from "../../utils/date";
 import { PortalToggle } from "./PortalToggle";
-
-const navigation = [
-  { name: "Talent Pools", href: "/talent-pools", icon: FolderKanban },
-  { name: "Workspaces", href: "/workspaces", icon: BriefcaseBusiness },
-  { name: "Tasks", href: "/tasks", icon: CheckSquare },
-  { name: "Payments", href: "/payments", icon: CircleDollarSign },
-  { name: "Applications", href: "/applications", icon: CheckSquare },
-  { name: "Members", href: "/members", icon: Users },
-];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { clientNotifications, clientProfile } = useTalentPool();
+  const { applications, clientNotifications, clientProfile } = useTalentPool();
   const unread = clientNotifications.filter((notification) => !notification.read).length;
+  const pendingApplications = applications.filter((application) => resolveApplicationStatus(application) === "Pending").length;
   const initials = clientProfile.name
     .split(" ")
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  const navigation = [
+    { name: "Talent Pools", href: "/talent-pools", icon: FolderKanban },
+    { name: "Workspaces", href: "/workspaces", icon: BriefcaseBusiness },
+    { name: "Tasks", href: "/tasks", icon: CheckSquare },
+    { name: "Payments", href: "/payments", icon: CircleDollarSign },
+    { name: "Applications", href: "/applications", icon: CheckSquare, badge: pendingApplications },
+    { name: "Members", href: "/members", icon: Users },
+  ];
 
   return (
     <div className="min-h-screen">
@@ -80,10 +82,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                 to={item.href}
                 end={item.href === "/talent-pools"}
                 className={({ isActive }) =>
-                  `px-4 py-3 text-sm font-semibold transition ${isActive ? "border-b-2 border-ink-900 text-ink-900" : "text-ink-500 hover:text-ink-800"}`
+                  `inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold transition ${isActive ? "border-b-2 border-ink-900 text-ink-900" : "text-ink-500 hover:text-ink-800"}`
                 }
               >
                 {item.name}
+                {item.badge ? (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">{item.badge}</span>
+                ) : null}
               </NavLink>
             ))}
           </div>
@@ -115,6 +120,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 >
                   <item.icon className="h-5 w-5" />
                   {item.name}
+                  {item.badge ? (
+                    <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold ${mobileOpen ? "bg-amber-100 text-amber-700" : ""}`}>{item.badge}</span>
+                  ) : null}
                 </NavLink>
               ))}
             </nav>

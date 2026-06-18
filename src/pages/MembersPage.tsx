@@ -1,12 +1,12 @@
 import { SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { ProfileSlideOver } from "../components/profile/ProfileSlideOver";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
 import { PageHeader } from "../components/ui/PageHeader";
-import { ProgressBar } from "../components/ui/ProgressBar";
 import { useTalentPool } from "../state/TalentPoolContext";
-import type { Availability } from "../types";
+import type { Availability, Professional } from "../types";
+import { getCredibilityScore } from "../utils/credibility";
 
 const AVAILABILITY_OPTIONS: Array<Availability | "All"> = ["All", "Available", "Partially Available", "Fully Occupied"];
 const RATING_OPTIONS = [
@@ -23,6 +23,7 @@ export function MembersPage() {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [availabilityFilter, setAvailabilityFilter] = useState<Availability | "All">("All");
   const [minRating, setMinRating] = useState(0);
+  const [profilePreview, setProfilePreview] = useState<Professional | null>(null);
 
   const allSkills = useMemo(
     () => [...new Set(professionals.flatMap((professional) => professional.skills))].sort(),
@@ -184,10 +185,11 @@ export function MembersPage() {
             const pools = getPoolsForProfessional(professional.id);
 
             return (
-              <Link
+              <button
                 key={professional.id}
-                to={`/professionals/${professional.id}`}
-                className="panel block p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-panel"
+                type="button"
+                className="panel block w-full p-4 text-left transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-panel"
+                onClick={() => setProfilePreview(professional)}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -221,8 +223,8 @@ export function MembersPage() {
 
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg bg-ink-50 px-2 py-2">
-                    <p className="text-xs text-ink-400">Rating</p>
-                    <p className="text-sm font-bold text-ink-900">{professional.rating.toFixed(1)}</p>
+                    <p className="text-xs text-ink-400">Credibility</p>
+                    <p className="text-sm font-bold text-ink-900">{getCredibilityScore(professional)}/100</p>
                   </div>
                   <div className="rounded-lg bg-ink-50 px-2 py-2">
                     <p className="text-xs text-ink-400">Pools</p>
@@ -233,15 +235,7 @@ export function MembersPage() {
                     <p className="text-sm font-bold text-ink-900">{professional.activeTaskIds.length}</p>
                   </div>
                 </div>
-
-                <div className="mt-3">
-                  <div className="mb-1 flex justify-between text-xs font-semibold text-ink-500">
-                    <span>Completion</span>
-                    <span>{professional.completionRate}%</span>
-                  </div>
-                  <ProgressBar value={professional.completionRate} />
-                </div>
-              </Link>
+              </button>
             );
           })
         ) : (
@@ -250,6 +244,8 @@ export function MembersPage() {
           </div>
         )}
       </div>
+
+      {profilePreview && <ProfileSlideOver professional={profilePreview} onClose={() => setProfilePreview(null)} />}
     </div>
   );
 }

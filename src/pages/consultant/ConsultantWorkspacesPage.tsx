@@ -1,12 +1,13 @@
-import { BriefcaseBusiness } from "lucide-react";
+import { BriefcaseBusiness, CheckCircle2, Clock3 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "../../components/ui/Badge";
+import { MetricCard } from "../../components/ui/MetricCard";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { useTalentPool } from "../../state/TalentPoolContext";
 import { formatDate } from "../../utils/date";
 
 export function ConsultantWorkspacesPage() {
-  const { getConsultantTasks, getConsultantWorkspaces } = useTalentPool();
+  const { getConsultantTasks, getConsultantWorkspaceMetrics, getConsultantWorkspaces } = useTalentPool();
   const workspaces = getConsultantWorkspaces();
 
   return (
@@ -18,15 +19,21 @@ export function ConsultantWorkspacesPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         {workspaces.map((workspace) => {
           const tasks = getConsultantTasks().filter((task) => task.workspaceId === workspace.id);
+          const metrics = getConsultantWorkspaceMetrics(workspace.id);
           return (
             <Link key={workspace.id} to={`/consultant/workspaces/${workspace.id}`} className="panel block p-5 transition hover:-translate-y-0.5 hover:shadow-panel">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-brand-50 p-3 text-brand-700">
                   <BriefcaseBusiness className="h-5 w-5" />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-bold text-ink-900">{workspace.name}</h2>
                   <p className="mt-1 line-clamp-2 text-sm text-ink-500">{workspace.objective}</p>
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <MetricCard label="Open" value={String(metrics.openTasks)} detail="Active tasks" icon={Clock3} accent="amber" />
+                    <MetricCard label="Closed" value={String(metrics.closedTasks)} detail="Completed" icon={CheckCircle2} accent="blue" />
+                    <MetricCard label="In review" value={String(metrics.inReview)} detail="Awaiting feedback" icon={BriefcaseBusiness} accent="brand" />
+                  </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Badge tone="blue">{tasks.length} assigned task{tasks.length !== 1 ? "s" : ""}</Badge>
                     <Badge tone="neutral">Due {formatDate(workspace.dueAt)}</Badge>

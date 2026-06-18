@@ -2,13 +2,10 @@ import {
   Briefcase,
   CalendarDays,
   Edit3,
-  FileCheck2,
   FolderOpen,
   LockKeyhole,
   MapPin,
   MoreHorizontal,
-  Send,
-  Star,
   Unlock,
   UserPlus,
   Users,
@@ -17,6 +14,8 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApplicationReviewList } from "../components/talent/ApplicationReviewList";
+import { InviteProfessionalModal } from "../components/talent/InviteProfessionalModal";
+import { ProfileSlideOver } from "../components/profile/ProfileSlideOver";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
@@ -25,14 +24,17 @@ import { PillTabs } from "../components/ui/PillTabs";
 import { PoolIcon } from "../components/ui/PoolIcon";
 import { StatusBadge } from "../components/ui/Status";
 import { useTalentPool } from "../state/TalentPoolContext";
-import type { Professional, TalentPool } from "../types";
+import type { Professional } from "../types";
+import { getCredibilityScore } from "../utils/credibility";
 import { formatDate } from "../utils/date";
 
-type PoolTab = "members" | "requests-invite" | "related-work";
+type PoolTab = "related-work" | "members" | "applications";
 
 export function TalentPoolDetailsPage() {
   const { poolId } = useParams();
   const [activeTab, setActiveTab] = useState<PoolTab>("related-work");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [profilePreview, setProfilePreview] = useState<Professional | null>(null);
   const {
     applications,
     closeTalentPool,
@@ -42,8 +44,6 @@ export function TalentPoolDetailsPage() {
     getPool,
     getWorkspace,
     milestones,
-    professionals,
-    sendInvitation,
     tasks,
   } = useTalentPool();
   const pool = poolId ? getPool(poolId) : undefined;
@@ -62,10 +62,6 @@ export function TalentPoolDetailsPage() {
       return parentTask ? { milestone, parentTask } : null;
     })
     .filter((row): row is { milestone: typeof milestones[number]; parentTask: typeof tasks[number] } => Boolean(row));
-  const recommendations = professionals
-    .filter((professional) => !memberIds.has(professional.id))
-    .map((professional) => ({ professional, score: calculateMatchScore(pool, professional) }))
-    .sort((a, b) => b.score - a.score);
 
   return (
     <div className="space-y-6">
@@ -102,7 +98,7 @@ export function TalentPoolDetailsPage() {
               <Edit3 className="h-4 w-4" />
               Edit
             </Link>
-            <button type="button" className="btn-primary" onClick={() => setActiveTab("requests-invite")}>
+            <button type="button" className="btn-primary" onClick={() => setInviteOpen(true)}>
               <UserPlus className="h-4 w-4" />
               Invite Professional
             </button>
@@ -128,126 +124,16 @@ export function TalentPoolDetailsPage() {
 
       <PillTabs
         tabs={[
-          { id: "members" as PoolTab, label: "Members", icon: <Users className="h-4 w-4" />, count: memberships.length },
-          { id: "requests-invite" as PoolTab, label: "Applications", icon: <FolderOpen className="h-4 w-4" />, count: poolApplications.length },
           { id: "related-work" as PoolTab, label: "Related Work", icon: <Briefcase className="h-4 w-4" />, count: relatedTasks.length + relatedMilestoneRows.length },
+          { id: "members" as PoolTab, label: "Members", icon: <Users className="h-4 w-4" />, count: memberships.length },
+          { id: "applications" as PoolTab, label: "Applications", icon: <FolderOpen className="h-4 w-4" />, count: poolApplications.length },
         ]}
         active={activeTab}
         onChange={setActiveTab}
       />
 
-      {activeTab === "members" && (
-        <div className="grid gap-5 md:grid-cols-2">
-          {memberships.length === 0 && (
-            <div className="panel col-span-full px-5 py-12 text-center text-sm text-ink-500">No active members in this pool yet.</div>
-          )}
-          {memberships.map((membership) => {
-            const professional = getProfessional(membership.professionalId);
-            if (!professional) return null;
-            const currentTask = relatedTasks.find((task) => task.activeAssigneeId === professional.id);
-            const workspace = currentTask ? getWorkspace(currentTask.workspaceId) : undefined;
-
-            return (
-              <article key={membership.id} className="panel p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <Avatar initials={professional.avatar} src={professional.photoUrl} size="lg" />
-                  <div className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-sm font-semibold text-amber-600">
-                    <Star className="h-3.5 w-3.5 fill-current" />
-                    {professional.rating.toFixed(1)}
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <p className="text-lg font-bold text-ink-900">{professional.name}</p>
-                  <p className="text-sm text-ink-500">{professional.title}</p>
-                  <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-500">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {professional.location}
-                  </p>
-                  <div className="mt-2">
-                    <Badge tone={professional.availability === "Available" ? "success" : "amber"}>{professional.availability}</Badge>
-                  </div>
-                </div>
-
-                {currentTask && (
-                  <p className="mt-4 flex items-start gap-2 text-sm text-ink-600">
-                    <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
-                    <span>
-                      On task: <span className="font-semibold text-ink-900">{currentTask.title}</span>
-                      {workspace ? ` (${workspace.name})` : ""}
-                    </span>
-                  </p>
-                )}
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Link to={`/professionals/${professional.id}`} className="btn-outline flex-1 sm:flex-none">
-                    View Profile
-                  </Link>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      {activeTab === "requests-invite" && (
-        <div className="space-y-6">
-          <section className="panel p-5">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-ink-900">Applications</h2>
-                <p className="mt-1 text-sm text-ink-500">{poolApplications.length} application{poolApplications.length !== 1 ? "s" : ""} submitted for this pool.</p>
-              </div>
-              <Badge tone={pool.intakeStatus === "Open" ? "success" : "coral"}>{pool.intakeStatus}</Badge>
-            </div>
-            <ApplicationReviewList applications={poolApplications} emptyMessage="No applications submitted for this Talent Pool." />
-          </section>
-
-          <section className="panel p-5">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-ink-900">Invite Professionals</h2>
-                <p className="mt-1 text-sm text-ink-500">Recommendations sorted by profile match score against this pool&apos;s required skills.</p>
-              </div>
-              <UserPlus className="h-5 w-5 text-brand-600" />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {recommendations.slice(0, 6).map(({ professional, score }) => (
-                <div key={professional.id} className="rounded-3xl border border-ink-100 bg-ink-50/50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <Link to={`/professionals/${professional.id}`} className="flex min-w-0 items-center gap-3">
-                      <Avatar initials={professional.avatar} src={professional.photoUrl} />
-                      <div className="min-w-0">
-                        <p className="font-bold text-ink-900">{professional.name}</p>
-                        <p className="truncate text-sm text-ink-500">{professional.title}</p>
-                      </div>
-                    </Link>
-                    <Badge tone={score >= 80 ? "success" : score >= 60 ? "amber" : "neutral"}>{score}%</Badge>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {professional.skills.slice(0, 4).map((skill) => <span key={skill} className="tag-pill">{skill}</span>)}
-                  </div>
-                  <button
-                    className="btn-primary mt-4 w-full disabled:cursor-not-allowed disabled:bg-ink-200"
-                    disabled={pool.intakeStatus === "Closed"}
-                    onClick={() => sendInvitation(pool.id, professional.id)}
-                  >
-                    <Send className="h-4 w-4" />
-                    {pool.intakeStatus === "Closed" ? "Pool closed" : "Invite to pool"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
-
       {activeTab === "related-work" && (
         <section className="panel overflow-hidden p-0">
-          <div className="border-b border-ink-100 px-6 py-5">
-            <h2 className="text-lg font-bold text-ink-900">Related Tasks & Milestones</h2>
-            <p className="mt-1 text-sm text-ink-500">Derived from tasks assigned to members of this Talent Pool.</p>
-          </div>
           <div className="divide-y divide-ink-100">
             {relatedTasks.map((task) => {
               const assignee = getProfessional(task.activeAssigneeId);
@@ -287,17 +173,86 @@ export function TalentPoolDetailsPage() {
           </div>
         </section>
       )}
+
+      {activeTab === "members" && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {memberships.length === 0 && (
+            <div className="panel col-span-full px-5 py-12 text-center text-sm text-ink-500">No active members in this pool yet.</div>
+          )}
+          {memberships.map((membership) => {
+            const professional = getProfessional(membership.professionalId);
+            if (!professional) return null;
+            const currentTask = relatedTasks.find((task) => task.activeAssigneeId === professional.id);
+            const workspace = currentTask ? getWorkspace(currentTask.workspaceId) : undefined;
+            const credibility = getCredibilityScore(professional);
+
+            return (
+              <article
+                key={membership.id}
+                role="button"
+                tabIndex={0}
+                className="panel cursor-pointer p-5 transition hover:-translate-y-0.5 hover:shadow-panel"
+                onClick={() => setProfilePreview(professional)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setProfilePreview(professional);
+                  }
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <Avatar initials={professional.avatar} src={professional.photoUrl} size="lg" />
+                  <Badge tone="blue">Credibility {credibility}/100</Badge>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-lg font-bold text-ink-900">{professional.name}</p>
+                  <p className="text-sm text-ink-500">{professional.title}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-500">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {professional.location}
+                  </p>
+                  <div className="mt-2">
+                    <Badge tone={professional.availability === "Available" ? "success" : "amber"}>{professional.availability}</Badge>
+                  </div>
+                </div>
+
+                {currentTask && (
+                  <p className="mt-4 flex items-start gap-2 text-sm text-ink-600">
+                    <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
+                    <span>
+                      On task: <span className="font-semibold text-ink-900">{currentTask.title}</span>
+                      {workspace ? ` (${workspace.name})` : ""}
+                    </span>
+                  </p>
+                )}
+
+                <div className="mt-5">
+                  <span className="btn-outline inline-flex">View profile</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {activeTab === "applications" && (
+        <section className="panel p-5">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-ink-900">Applications</h2>
+              <p className="mt-1 text-sm text-ink-500">{poolApplications.length} application{poolApplications.length !== 1 ? "s" : ""} submitted for this pool.</p>
+            </div>
+            <Badge tone={pool.intakeStatus === "Open" ? "success" : "coral"}>{pool.intakeStatus}</Badge>
+          </div>
+          <ApplicationReviewList applications={poolApplications} poolId={pool.id} emptyMessage="No applications submitted for this Talent Pool." />
+        </section>
+      )}
+
+      {inviteOpen && <InviteProfessionalModal pool={pool} onClose={() => setInviteOpen(false)} />}
+      {profilePreview && <ProfileSlideOver professional={profilePreview} onClose={() => setProfilePreview(null)} />}
     </div>
   );
-}
-
-function calculateMatchScore(pool: TalentPool, professional: Professional) {
-  const required = pool.requiredSkills.map((skill) => skill.toLowerCase());
-  const skills = professional.skills.map((skill) => skill.toLowerCase());
-  const overlap = required.filter((skill) => skills.includes(skill)).length;
-  const skillScore = required.length ? Math.round((overlap / required.length) * 75) : 40;
-  const credibility = Math.round(Math.min(25, professional.rating * 5));
-  return Math.min(99, skillScore + credibility);
 }
 
 function RelatedWorkRow({
